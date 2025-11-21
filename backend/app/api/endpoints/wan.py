@@ -8,10 +8,11 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.models.wan import WanNetwork
-from app.models.peer import Peer
+from app.models.peer import Peer, PeerType
 from app.schemas.wan import WanCreate, WanUpdate, WanResponse, WanListResponse
 from app.services.ip_allocation import IPAllocationService
 from app.services.conflict_detection import ConflictDetectionService
+from app.services.deployment import DeploymentService
 
 router = APIRouter()
 
@@ -184,6 +185,15 @@ async def delete_wan_network(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="WAN network not found",
         )
+
+    # Best-effort cleanup of managed configuration for MikroTik peers before deletion
+    deployment_service = DeploymentService(db)
+    for peer in wan.peers:
+        if peer.type == PeerType.MIKROTIK:
+            try:
+                await deployment_service.clear_managed_configuration(peer.id)
+            except Exception:
+                continue
 
     await db.delete(wan)
     await db.commit()

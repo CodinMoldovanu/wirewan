@@ -314,6 +314,15 @@ async def delete_peer(
             detail="Peer not found",
         )
 
+    # Best-effort cleanup of managed configuration before deletion
+    if peer.type == PeerType.MIKROTIK:
+        try:
+            deployment_service = DeploymentService(db)
+            await deployment_service.clear_managed_configuration(peer_id)
+        except Exception:
+            # Don't block deletion; surface as warning in operations log if present
+            pass
+
     await db.delete(peer)
     await db.commit()
 
